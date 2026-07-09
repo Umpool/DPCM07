@@ -23,15 +23,17 @@ public class IntroLoadingManager : MonoBehaviour
     {
         // [강제 활성화 기능 추가] 게임이 시작되면 이 스크립트가 붙은 오브젝트를 무조건 활성화합니다!
         gameObject.SetActive(true);
-
         loadingSlider.value = 0f;
-        clickPanel.SetActive(false);
-
+        if (gameObject.TryGetComponent<Button>(out Button btn))
+        {
+            btn.interactable = false;
+        }
         // [새로운 기능] 게임이 켜질 때 0, 1, 2 중 하나의 숫자를 무작위로 뽑습니다.
         textGroupIndex = Random.Range(0, 3);
         Debug.Log($"[IntroLoading] 이번 판에 선택된 로딩 문구 세트 번호: {textGroupIndex}번");
 
         CheckUserData();
+        if (hasUserData) { /* 나중에 저장된 유저 정보를 불러올 때 활용할 예정입니다 */ }
     }
 
     // [유니티 매뉴얼] 이 수정본 조각은 총 31줄입니다.
@@ -42,6 +44,17 @@ public class IntroLoadingManager : MonoBehaviour
         {
             currentProgress += Time.deltaTime * loadingSpeed;
             loadingSlider.value = Mathf.Clamp01(currentProgress);
+
+            // ---------------- [여기서부터 새로 끼워 넣는 코드] ----------------
+            // 0%일 땐 흰색, 100%일 땐 녹색이 되도록 비율을 계산합니다.
+            Color barColor = Color.Lerp(Color.white, Color.green, loadingSlider.value);
+
+            // 로딩바 내부의 채워지는 이미지(fillRect)를 찾아서 색상을 입혀줍니다.
+            if (loadingSlider.fillRect != null && loadingSlider.fillRect.TryGetComponent<Image>(out Image fillImage))
+            {
+                fillImage.color = barColor;
+            }
+            // ---------------- [여기까지 새로 끼워 넣는 코드] ----------------
 
             // 로딩 수치에 따라 무작위로 선택된 세트의 텍스트를 보여줍니다.
             UpdateStatusText(loadingSlider.value);
