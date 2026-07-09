@@ -21,12 +21,16 @@ public class IntroLoadingManager : MonoBehaviour
 
     void Start()
     {
+        // [서열 정리] 인트로 캔버스의 그리기 순서를 '100층'으로 높여 무조건 화면 맨 앞에 오게 만듭니다! 구조층
+        if (TryGetComponent<Canvas>(out Canvas introCanvas)) { introCanvas.overrideSorting = true; introCanvas.sortingOrder = 100; }
+
         // [강제 활성화 기능 추가] 게임이 시작되면 이 스크립트가 붙은 오브젝트를 무조건 활성화합니다!
         gameObject.SetActive(true);
         loadingSlider.value = 0f;
-        if (gameObject.TryGetComponent<Button>(out Button btn))
+        // [선배의 팁] 연결해 둔 'clickPanel'(인트로 클릭 감지)의 Button 컴포넌트를 찾아 인스펙터 체크박스를 해제(false)합니다!
+        if (clickPanel != null && clickPanel.TryGetComponent<Button>(out Button introBtn))
         {
-            btn.interactable = false;
+            introBtn.interactable = false;
         }
         // [새로운 기능] 게임이 켜질 때 0, 1, 2 중 하나의 숫자를 무작위로 뽑습니다.
         textGroupIndex = Random.Range(0, 3);
@@ -113,9 +117,18 @@ public class IntroLoadingManager : MonoBehaviour
     {
         isLoadingComplete = true;
         statusText.text = "화면을 클릭해주세요.";
-        clickPanel.SetActive(true);
+
+        // ---------------- [기존 코드를 안전하게 보호하며 합치기] ----------------
+        // 로딩이 100% 끝났으니, 잠가두었던 클릭 패널을 안전하게 화면에 켜줍니다(true)!
+        if (clickPanel != null)
+        {
+            clickPanel.SetActive(true);
+        }
+        // ----------------------------------------------------------------------
+
         Debug.Log("[IntroLoading] 로딩 완료!");
     }
+
 
     private void CheckUserData()
     {
