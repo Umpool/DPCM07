@@ -27,6 +27,9 @@ public class TitleManager : MonoBehaviour
 
     private void Start()
     {
+        // [서열 정리] 타이틀 캔버스의 그리기 순서를 '99층'으로 낮춰 무조건 인트로 뒤에 깔리게 만듭니다! 구조층
+        if (TryGetComponent<Canvas>(out Canvas titleCanvas)) { titleCanvas.overrideSorting = true; titleCanvas.sortingOrder = 99; }
+
         // 1. 시작 시 설정 팝업창과 iOS 안내 문구는 기본적으로 숨겨둡니다.
         if (settingsPopupPanel != null) settingsPopupPanel.SetActive(false);
         if (iosNoticeText != null) iosNoticeText.gameObject.SetActive(false);
@@ -35,37 +38,53 @@ public class TitleManager : MonoBehaviour
         if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
 
         // 2. [핵심 기능] 인트로에서 검사했던 것과 동일하게 유저 데이터 존재 여부를 파악합니다.
-        CheckUserDataAndSetupButtons();
+        // [선배의 팁] 두 기능을 독립적으로 순서대로 실행시킵니다.
+        CheckUserDataOnly(); // 1단계: 판단만 하기
+        SetupTitleButtons(); // 2단계: 버튼 켜고 끄기 따로 제어하기
+        
     }
 
-    // [유니티 매뉴얼] 이 수정본 조각은 주석 포함 총 35줄입니다.
+    // [유니티 매뉴얼] TitleManager.cs의 기존 데이터 검사 함수를 지우고, 이 두 개의 독립된 함수로 갈아끼우세요.
+
     /// <summary>
-    /// 플레이어 데이터 여부를 판단하여 [새로운 모험] 또는 [이어하기] 버튼만 정교하게 켜고 니다.
-    /// 설정 버튼과 휴식하기 버튼은 이 함수에서 건드리지 않으므로 항상 화면에 유지됩니다.
+    /// [독립 기능 1] 순수하게 데이터 유무만 '판단'하여 결과만 기록하는 함수입니다.
     /// </summary>
-    private void CheckUserDataAndSetupButtons()
+    private void CheckUserDataOnly()
     {
-        // 인트로의 데이터 저장 열쇠인 'HasSaveData'가 존재하는지 확인합니다.
+        Debug.Log("[TitleManager] 1단계: 순수 데이터 유무 검사 가동...");
+
         if (PlayerPrefs.HasKey("HasSaveData"))
         {
             hasUserData = true;
-            Debug.Log("[TitleManager] 데이터 확인 완료: [이어하기] 버튼을 켭니다.");
-
-            // 데이터가 있으므로 이어하기만 켜고, 새로운 모험은 끕니다.
-            if (continueButton != null) continueButton.SetActive(true);
-            if (newGameButton != null) newGameButton.SetActive(false);
+            Debug.Log("[TitleManager] 데이터 판단 결과 -> 💾 기존 데이터가 존재합니다.");
         }
         else
         {
             hasUserData = false;
-            Debug.Log("[TitleManager] 데이터 없음 확인: [새로운 모험] 버튼을 켭니다.");
-
-            // 데이터가 없으므로 새로운 모험만 켜고, 이어하기는 끕니다.
-            if (continueButton != null) continueButton.SetActive(false);
-            if (newGameButton != null) newGameButton.SetActive(true);
-            if (hasUserData) { /* 나중에 저장된 유저 정보를 불러올 때 활용할 예정입니다 */ }
+            Debug.Log("[TitleManager] 데이터 판단 결과 -> 🆕 기존 데이터가 없습니다.");
         }
     }
+
+    /// <summary>
+    /// [독립 기능 2] 기록된 판단 결과 변수(hasUserData)만 보고 실질적으로 버튼을 '켜고 끄는' 따로 제어하는 함수입니다.
+    /// </summary>
+    private void SetupTitleButtons()
+    {
+        Debug.Log($"[TitleManager] 2단계: 판단된 결과({hasUserData})를 바탕으로 버튼 개별 제어 시작.");
+
+        // 오직 데이터 유무 상태만 보고 두 버튼의 활성화 상태를 제어합니다.
+        if (hasUserData)
+        {
+            if (continueButton != null) continueButton.SetActive(true);   // 이어하기 ON
+            if (newGameButton != null) newGameButton.SetActive(false);    // 새로운 모험 OFF
+        }
+        else
+        {
+            if (continueButton != null) continueButton.SetActive(false);  // 이어하기 OFF
+            if (newGameButton != null) newGameButton.SetActive(true);     // 새로운 모험 ON
+        }
+    }
+
 
 
     /// <summary>
@@ -75,15 +94,23 @@ public class TitleManager : MonoBehaviour
     {
         Debug.Log("[TitleManager] 새로운 모험 시작 - 타이틀을 끄고 첫 이벤트 화면을 켭니다.");
 
-        // 1. 준비해둔 첫 이벤트 화면 오브젝트를 화면에 켭니다!
+        // [1박자]: 먼저 잠들어 있던 '첫 이벤트 화면' 오브젝트의 네모 체크박스를 확실하게 켭니다!
         if (firstEventPanel != null)
         {
             firstEventPanel.SetActive(true);
         }
 
-        // 2. 현재 켜져 있는 타이틀 화면 전체는 깔끔하게 꺼줍니다.
+        // [2박자]: 그 다음 임무를 마친 타이틀 화면 전체를 깔끔하게 꺼줍니다.
         gameObject.SetActive(false);
+
+        // [3박자]: 화면이 완전히 활성화된 것을 유니티가 인지한 '직후'에 
+        // 이벤트 매니저에게 "이제 안전하니 0.5초 뒤에 첫 대사를 틀어라!"라고 바통을 넘깁니다.
+        if (firstEventPanel != null && firstEventPanel.TryGetComponent<EventScreenManager>(out EventScreenManager eventMgr))
+        {
+            eventMgr.StartEventWithDelay();
+        }
     }
+
 
 
     /// <summary>
