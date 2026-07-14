@@ -1,93 +1,77 @@
 using UnityEngine;
-// 최신 입력 시스템을 사용하기 위해 패키지를 불러옵니다.
-using UnityEngine.InputSystem; 
 
-public class CameraDragScroller : MonoBehaviour
+public class TownCameraController : MonoBehaviour
 {
-    [Header("마을배경 오브젝트를 넣어주세요")]
-    public RectTransform townBackground; 
+    [Header("Drag Settings")]
+    [SerializeField] private float dragSpeed = 1.0f;
 
-    [Header("드래그 속도 (UI 크기에 맞춰 0.5~1.5 추천)")]
-    public float dragSpeed = 1f;
+    [Header("Map Settings (Pixels)")]
+    [SerializeField] private Vector2 mapSize = new Vector2(4000f, 2500f);
+    [SerializeField] private float pixelsPerUnit = 100f; // 유니티 스프라이트의 PPU 기본값
 
+    private Camera mainCamera;
     private Vector3 dragOrigin;
-    private Camera cam;
-    private float minX, maxX, minY, maxY;
-    private bool isDragging = false;
+
+    // 월드 단위로 변환된 맵 크기
+    private float mapWidthInUnits;
+    private float mapHeightInUnits;
 
     void Start()
     {
-        cam = Camera.main;
+        mainCamera = Camera.main;
 
-        if (townBackground != null)
-        {
-            CalculateUIBounds();
-        }
-        else
-        {
-            Debug.LogError("마을 배경(RectTransform)이 지정되지 않았습니다! 메인 카메라 인스펙터에서 넣어주세요.");
-        }
-    }
-
-    void CalculateUIBounds()
-    {
-        Vector3[] corners = new Vector3[4];
-        townBackground.GetWorldCorners(corners);
-
-        float bgMinX = corners[0].x;
-        float bgMaxX = corners[2].x;
-        float bgMinY = corners[0].y;
-        float bgMaxY = corners[2].y;
-
-        float camHeight = cam.orthographicSize;
-        float camWidth = camHeight * cam.aspect;
-
-        minX = bgMinX + camWidth;
-        maxX = bgMaxX - camWidth;
-        minY = bgMinY + camHeight;
-        maxY = bgMaxY - camHeight;
-
-        if (minX > maxX) { float midX = (bgMinX + bgMaxX) / 2f; minX = maxX = midX; }
-        if (minY > maxY) { float midY = (bgMinY + bgMaxY) / 2f; minY = maxY = midY; }
+        // 픽셀 단위를 유니티 월드 단위(Unit)로 변환
+        mapWidthInUnits = mapSize.x / pixelsPerUnit;
+        mapHeightInUnits = mapSize.y / pixelsPerUnit;
     }
 
     void Update()
     {
-        // 최신 마우스/터치 입력 감지 방식
-        Mouse currentMouse = Mouse.current;
-        if (currentMouse == null) return;
+        HandleMouseDrag();
+    }
 
-        Vector2 mousePosition = currentMouse.position.ReadValue();
-
-        // 1. 마우스 왼쪽 버튼을 처음 누른 순간
-        if (currentMouse.leftButton.wasPressedThisFrame)
+    private void HandleMouseDrag()
+    {
+        if (Input.GetMouseButtonDown(0))
         {
-            dragOrigin = cam.ScreenToWorldPoint(mousePosition);
-            isDragging = true;
+            dragOrigin = mainCamera.ScreenToWorldPoint(Input.mousePosition);
             return;
         }
 
-        // 2. 마우스 왼쪽 버튼을 뗀 순간 드래그 종료
-        if (currentMouse.leftButton.wasReleasedThisFrame)
+        if (Input.GetMouseButton(0))
         {
-            isDragging = false;
+            Vector3 currentMousePos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
+            Vector3 difference = dragOrigin - currentMousePos;
+
+            // 새로운 목표 위치 계산
+            Vector3 targetPosition = transform.position + difference * dragSpeed;
+
+            // 화면 모서리가 맵 밖으로 나가지 않도록 제한 적용
+            transform.position = ClampCameraToMap(targetPosition);
         }
+    }
 
-        // 3. 드래그 중일 때 카메라 이동 계산
-        if (isDragging && currentMouse.leftButton.isPressed)
-        {
-            Vector3 currentPos = cam.ScreenToWorldPoint(mousePosition);
-            Vector3 difference = dragOrigin - currentPos;
-            
-            difference.z = 0; 
+    private Vector3 ClampCameraToMap(Vector3 targetPos)
+    {
+        // 카메라의 세로 절반 크기 (월드 단위)
+        float camHeight = mainCamera.orthographicSize;
+        // 카메라의 가로 절반 크기 (월드 단위, 화면 비율 반영)
+        float camWidth = camHeight * mainCamera.aspect;
 
-            Vector3 targetPos = transform.position + difference * dragSpeed;
+        // 화면 모서리가 맵 끝에 닿는 최소/최대 월드 좌표 계산
+        float minX = -(mapWidthInUnits / 2f) + camWidth;
+        float maxX = (mapWidthInUnits / 2f) - camWidth;
+        float minY = -(mapHeightInUnits / 2f) + camHeight;
+        float maxY = (mapHeightInUnits / 2f) - camHeight;
 
-            // 마을 영역 밖을 절대 못 나가게 차단
-            targetPos.x = Mathf.Clamp(targetPos.x, minX, maxX);
-            targetPos.y = Mathf.Clamp(targetPos.y, minY, maxY);
+        // 만약 카메라 크기가 맵 크기보다 크다면 화면을 중앙에 고정
+        if (minX > maxX) { minX = maxX = 0f; }
+        if (minY > maxY) { minY = maxY = 0f; }
 
-            transform.position = targetPos;
-        }
+        // 계산된 범위 내로 카메라 좌표 가두기
+        float clampedX = Mathf.Clamp(targetPos.x, minX, maxX);
+        float clampedY = Mathf.Clamp(targetPos.y, minY, maxY);
+
+        return new Vector3(clampedX, clampedY, targetPos.z);
     }
 }
