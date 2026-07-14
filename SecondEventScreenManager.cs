@@ -1,179 +1,119 @@
 using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
 
-// 전체 시나리오 관리 클래스
 public class SecondEventScreenManager : MonoBehaviour
 {
-    [Header("[UI 컴포넌트 및 버튼 연결]")]
-    [SerializeField] private TextMeshProUGUI storyText; // 대사 출력 TMPro
-    [SerializeField] private Button nextButton;        // 클릭 버튼
+    [Header("UI 컴포넌트 연결")]
+    public TextMeshProUGUI storyText;
+    public GameObject nextButton;
 
-    [Header("[최종 화면 전환]")]
-    [SerializeField] private GameObject villagePanel;  // 마을 패널
+    [Header("화면 전환 설정")]
+    public GameObject villagePanel;
 
-    [Header("[타이핑 연출 설정]")]
-    [SerializeField] private float typingSpeed = 0.05f; // 글자 출력 속도
+    [Header("타이핑 효과 설정")]
+    public float typingSpeed = 0.05f;
 
-    // 상태 제어용 프라이빗 변수들
-    private int currentStep = 0;      // 현재 대사 인덱스
-    private bool isTyping = false;     // 타이핑 중 여부 (스킵 체크용)
-    private string fullText = "";      // 현재 화면에 출력할 전체 원본 대사
-    private Coroutine colorCoroutine;  // 텍스트 색상 변경 코루틴 제어용
-}
-private void OnEnable()
-{
-    currentStep = 0; // 단계 초기화
+    private int currentStep = 0;
 
-    // 버튼 클릭 이벤트 연결
-    if (nextButton != null)
+    // 현재 타이핑 연출이 진행 중인지 체크하는 안전장치
+    private bool isTyping = false;
+    private string fullText = "";
+
+    public void StartEventWithDelay()
     {
-        nextButton.onClick.RemoveAllListeners();
-        nextButton.onClick.AddListener(OnClickNextButton);
+        // 0.5초 동안 유니티 엔진과 유저가 숨을 완전히 고른 뒤에 첫 시나리오를 가동하라고 명합니다.
+        Invoke("ExecuteCurrentStep", 0.5f);
     }
-    ExecuteCurrentStep(); // 첫 문장 출력
-}
 
-private void OnDisable()
-{
-    if (nextButton != null) nextButton.onClick.RemoveListener(OnClickNextButton);
-}
 
-/// <summary>
-/// 클릭 시 타이핑 중이면 전체 출력(스킵), 완료 상태면 다음 대사로 진행
-/// </summary>
-public void OnClickNextButton()
-{
-    if (isTyping) // 타이핑 중일 때 -> 스킵
+    /// <summary>
+    /// 유니티 에디터에 배치한 [다음] 버튼을 누를 때마다 실행될 함수입니다.
+    /// </summary>
+    public void OnClickNextButton()
+    {
+        // [안전장치] 만약 글자가 타닥타닥 찍히는 중이라면, 버튼을 눌러도 다음 단계로 안 넘어가고 
+        // 문장을 한 번에 짜잔! 하고 전부 보여주는 스킵(Skip) 처리를 합니다.
+        if (isTyping)
+        {
+            StopAllCoroutines();
+            storyText.text = fullText;
+            isTyping = false;
+            Debug.Log($"[Event] 타이핑 연출 스킵 완료 - 현재 단계: {currentStep}");
+            return;
+        }
+
+        // 타이핑이 완전히 끝난 상태에서 버튼을 누르면 다음 단계로 숫자를 올립니다.
+        currentStep++;
+        ExecuteCurrentStep();
+    }
+
+
+
+    private void ExecuteCurrentStep()
+    {
+        Debug.Log($"[Event] 시나리오 {currentStep} 단계 실행 시작");
+
+        switch (currentStep)
+        {
+            case 0:
+                storyText.color = Color.white;
+                StartTypingEffect("네번째 텍스트입니다.");
+                break;
+
+            case 1:
+                storyText.color = Color.blue;
+                Debug.Log("[Event] 텍스트 색상 파란색(Blue) 변경 완료");
+                break;
+
+            case 2:
+                storyText.color = Color.white;
+                StartTypingEffect("다섯번째 텍스트입니다.");
+                break;
+
+            case 3:
+                storyText.color = new Color(0.5f, 0f, 0.5f);
+                Debug.Log("[Event] 텍스트 색상 보라색(Purple) 변경 완료");
+                break;
+
+            case 4:
+                storyText.color = Color.white;
+                StartTypingEffect("여섯번째 텍스트입니다.");
+                break;
+
+            case 5:
+                storyText.color = Color.red;
+                Debug.Log("[Event] 텍스트 색상 빨간색(Red) 변경 완료");
+                break;
+            case 6:
+                Debug.Log("[Event] 다음 화면으로 넘어가기 전 대사와 글자창을 완전히 포맷합니다.");
+                currentStep = 0;
+                if (storyText != null) { storyText.text = ""; storyText.color = Color.white; }
+                if (villagePanel != null) villagePanel.SetActive(true);
+                this.gameObject.SetActive(false);
+                break;
+        }
+    }
+
+    // --- 글자를 한 글자씩 타닥타닥 출력해 주는 코루틴 기능 부속품 ---
+    private void StartTypingEffect(string targetText)
     {
         StopAllCoroutines();
-        storyText.text = fullText;
-        isTyping = false;
-        return;
-    }
-    // 타이핑 완료 상태일 때 -> 다음 단계
-    currentStep++;
-    ExecuteCurrentStep();
-}
-/// <summary>
-/// 기획한 시나리오 조건에 맞춰 대사와 색상을 준비하는 함수입니다.
-/// </summary>
-private void ExecuteCurrentStep()
-{
-    // 연출이 시작되기 전, 텍스트 색상을 기본 흰색으로 맑게 초기화합니다.
-    if (storyText != null)
-    {
-        storyText.color = Color.white;
+        fullText = targetText;
+        StartCoroutine(TypeTextRoutine());
     }
 
-    Color targetColor = Color.white;
-
-    switch (currentStep)
+    private System.Collections.IEnumerator TypeTextRoutine()
     {
-        case 0:
-            fullText = "네번째 텍스트입니다.";
-            targetColor = Color.blue; // 파란색으로 물들 예정
-            break;
+        isTyping = true;
+        storyText.text = ""; // 글자창을 깨끗하게 비웁니다.
 
-        case 1:
-            fullText = "다섯번째 텍스트입니다.";
-            targetColor = new Color(0.5f, 0f, 0.5f); // 보라색으로 물들 예정
-            break;
-        case 2:
-            fullText = "여섯번째 텍스트입니다.";
-            targetColor = Color.red; // 빨간색으로 물들 예정
-            break;
-
-        default:
-            // 모든 대사가 끝나면 숫자를 0으로 돌려놓습니다.
-            currentStep = 0;
-
-            // 다음번에 찰나라도 잔상이 보이지 않게 텍스트를 깨끗하게 비웁니다.
-            if (storyText != null)
-            {
-                storyText.text = "";
-            }
-
-            // 최종 마을 화면 패널은 켜고, 현재 이벤트창은 비활성화합니다.
-            if (villagePanel != null)
-            {
-                villagePanel.SetActive(true);
-            }
-            this.gameObject.SetActive(false);
-            return;
-    }
-
-    // 대사와 색상 지정이 끝나면 타이핑과 색상 변경 연출을 시작합니다.
-    StartEffects(targetColor);
-}
-/// <summary>
-/// 기존 연출들을 모두 안전하게 중지시키고 새로운 연출을 시작합니다.
-/// </summary>
-private void StartEffects(Color targetColor)
-{
-    StopAllCoroutines(); // 진행 중이던 모든 타이밍 기능을 리셋합니다.
-
-    // 1. 한 글자씩 출력되는 타이핑 효과 가동
-    StartCoroutine(TypeTextRoutine());
-
-    // 2. 색상이 스르륵 물드는 페이드 효과 가동 (지속시간 0.8초)
-    colorCoroutine = StartCoroutine(FadeTextColorRoutine(targetColor, 0.8f));
-}
-
-/// <summary>
-/// 글자 주머니에서 한 글자씩 꺼내어 조립 후 화면에 출력하는 기능입니다.
-/// </summary>
-private System.Collections.IEnumerator TypeTextRoutine()
-{
-    isTyping = true; // "지금 글자 찍는 중이야" 라고 컴퓨터에게 알립니다.
-
-    if (storyText != null)
-    {
-        storyText.text = ""; // 글자창을 먼저 뽀얗게 비웁니다.
-    }
-
-    // 전체 문장을 한 글자씩 순서대로 화면에 더해나갑니다.
-    foreach (char letter in fullText)
-    {
-        if (storyText != null)
+        // 글자 배열을 돌며 한 글자씩 조립해서 화면에 뿌려줍니다.
+        foreach (char letter in fullText)
         {
             storyText.text += letter;
+            yield return new WaitForSeconds(typingSpeed); // 설정한 속도만큼 잠깐 대기
         }
-        yield return new WaitForSeconds(typingSpeed); // 설정한 시간만큼 대기합니다.
+
+        isTyping = false;
     }
-
-    isTyping = false; // "글자 다 찍었어" 라고 상태를 변경합니다.
-}
-/// <summary>
-/// 글자 색상을 부드럽게 목표 색상(endColor)으로 변하게 만드는 기능입니다.
-/// </summary>
-private System.Collections.IEnumerator FadeTextColorRoutine(Color endColor, float duration)
-{
-    float elapsedTime = 0f;
-    Color startColor = Color.white; // 항상 깨끗한 흰색에서 시작합니다.
-
-    if (storyText != null)
-    {
-        startColor = storyText.color;
-    }
-
-    // 설정한 지속 시간(duration) 동안 매 프레임마다 색상을 스르륵 변경합니다.
-    while (elapsedTime < duration)
-    {
-        elapsedTime += Time.deltaTime;
-
-        if (storyText != null)
-        {
-            // 두 색상 사이를 부드럽게 이어주는 Lerp 기능입니다.
-            storyText.color = Color.Lerp(startColor, endColor, elapsedTime / duration);
-        }
-        yield return null; // 다음 프레임까지 대기합니다.
-    }
-
-    // 마지막 오차를 방지하기 위해 목표 색상을 정확하게 최종 대입합니다.
-    if (storyText != null)
-    {
-        storyText.color = endColor;
-    }
-}
 }
