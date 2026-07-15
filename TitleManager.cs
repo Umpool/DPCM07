@@ -21,6 +21,9 @@ public class TitleManager : MonoBehaviour
     [Tooltip("이벤트 다음에 켜줄 메인 캐릭터 선택창 오브젝트입니다.")]
     public GameObject characterSelectPanel;
 
+    [Tooltip("이어하기 시 바로 켜줄 최종 마을 화면 패널 오브젝트입니다.")]
+    public GameObject villagePanel;
+
 
     // [중요] 유니티 에디터 창이나 코드 상에서 테스트용으로 데이터를 껐다 켰다 할 수 있게 만듭니다.
     private bool hasUserData = false;
@@ -53,17 +56,20 @@ public class TitleManager : MonoBehaviour
     {
         Debug.Log("[TitleManager] 1단계: 순수 데이터 유무 검사 가동...");
 
+        // 두 번째 이벤트씬에서 저장한 통합 마스터 열쇠(HasSaveData)를 검사하므로 
+        // 앞으로 골드가 추가되든, 진행도가 추가되든 이 한 줄로 타이틀 버튼이 완벽하게 통제됩니다.
         if (PlayerPrefs.HasKey("HasSaveData"))
         {
             hasUserData = true;
-            Debug.Log("[TitleManager] 데이터 판단 결과 -> 💾 기존 데이터가 존재합니다.");
+            Debug.Log("[TitleManager] 데이터 판단 결과 -> 💾 기존 통합 세이브 데이터가 존재합니다.");
         }
         else
         {
             hasUserData = false;
-            Debug.Log("[TitleManager] 데이터 판단 결과 -> 🆕 기존 데이터가 없습니다.");
+            Debug.Log("[TitleManager] 데이터 판단 결과 -> 🆕 세이브 데이터가 없습니다.");
         }
     }
+
 
     /// <summary>
     /// [독립 기능 2] 기록된 판단 결과 변수(hasUserData)만 보고 실질적으로 버튼을 '켜고 끄는' 따로 제어하는 함수입니다.
@@ -111,16 +117,58 @@ public class TitleManager : MonoBehaviour
         }
     }
 
-
-
-    /// <summary>
-    /// 2. [이어하기] 버튼을 눌렀을 때
+    /// 2. [이어하기] 버튼을 눌렀을 때 실행되는 함수입니다.
     /// </summary>
     public void OnClickContinue()
     {
-        Debug.Log("[Title] 기존 모험 이어하기! 마을 화면으로 화면 전환요청.");
-        SceneGroupManager.Instance.ChangeScene("TownScene");
+        Debug.Log("[Title] 이어하기 가동: 프로젝트 창고의 프리팹을 배제하고, 오직 현재 씬의 실물 이벤트창들을 완전히 파괴하여 끕니다.");
+
+        CancelInvoke();
+
+        // 1. 현재 게임 월드(씬)에 살아 숨 쉬는 모든 오브젝트들을 스캔합니다.
+        Transform[] allObjects = Resources.FindObjectsOfTypeAll<Transform>();
+
+        // 현재 열려있는 씬의 고유 이름을 가져옵니다.
+        string currentActiveSceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+
+        foreach (Transform obj in allObjects)
+        {
+            // [검증 장치 핵심] 프로젝트 폴더 안에 잠들어 있는 원본 프리팹 파일들은 모조리 거릅니다!
+            // 오직 현재 눈앞에 열려있는 진짜 게임 씬 소속의 실물 오브젝트만 통제합니다.
+            if (obj.gameObject.scene.name == currentActiveSceneName)
+            {
+                // 실물 첫 이벤트 화면 발견 시 강제 종료
+                if (obj.name == "첫 이벤트 화면")
+                {
+                    obj.gameObject.SetActive(false);
+                }
+
+                // 실물 두 번째 이벤트 화면 발견 시 강제 종료
+                if (obj.name == "두번째 이벤트 화면")
+                {
+                    obj.gameObject.SetActive(false);
+                }
+
+                // [진짜 실물 마을 화면 발견] 오직 게임 화면 속에 배치된 진짜 마을만 활성화합니다!
+                if (obj.name == "마을")
+                {
+                    obj.gameObject.SetActive(true);
+                    Debug.Log("[Title] 프로젝트 폴더 원본이 아닌, 진짜 눈앞의 실물 '마을' 패널을 성공적으로 켰습니다.");
+                }
+            }
+        }
+
+        // 2. 만약의 사태를 대비해 인스펙터 칸에 직통 연결해 둔 마을 오브젝트도 세트로 한 번 더 확실하게 켭니다.
+        if (villagePanel != null)
+        {
+            villagePanel.SetActive(true);
+        }
+
+        gameObject.SetActive(false);
     }
+
+
+
 
     /// <summary>
     /// 3. [설정] 버튼을 눌렀을 때 - 화면 전환 없이 팝업창을 켭니다.
