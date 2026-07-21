@@ -193,6 +193,12 @@ public class CharacterSelectManager : MonoBehaviour
         if (titlePanel != null) titlePanel.SetActive(true);
         
         this.gameObject.SetActive(false); // 내 자신은 꺼집니다.
+
+        PlayerPrefs.DeleteKey("SelectedCharacterName");
+        PlayerPrefs.Save();
+
+        if (titlePanel != null) titlePanel.SetActive(true);
+        this.gameObject.SetActive(false);
     }
 
 } // CharacterSelectManager 클래스의 최종 마침표
