@@ -30,22 +30,51 @@ public class TitleManager : MonoBehaviour
 
     private void Start()
     {
-        // [서열 정리] 타이틀 캔버스의 그리기 순서를 '99층'으로 낮춰 무조건 인트로 뒤에 깔리게 만듭니다! 구조층
-        if (TryGetComponent<Canvas>(out Canvas titleCanvas)) { titleCanvas.overrideSorting = true; titleCanvas.sortingOrder = 99; }
+        // ----------------------------------------------------
+        // 👑 [수집형 RPG 정석: 캐릭터 창고 복귀 유저 다이렉트 패스 장치]
+        // ----------------------------------------------------
+        if (PlayerPrefs.HasKey("IsReturningFromStorage") && PlayerPrefs.GetInt("IsReturningFromStorage") == 1)
+        {
+            Debug.Log("[TitleManager] 정석 복귀 인지 완료: 캐릭터 보관함에서 돌아온 유저입니다! 인트로/타이틀을 올-패스하고 마을 패널을 강제 활성화합니다.");
 
-        // 1. 시작 시 설정 팝업창과 iOS 안내 문구는 기본적으로 숨겨둡니다.
+            // 1. 세이브/복귀 정보에 근거하여, 오직 실물 '마을 패널'과 '상단바'만 보란 듯이 즉시 켭니다.
+            if (villagePanel != null) villagePanel.SetActive(true);
+
+            Transform[] allObjects = Resources.FindObjectsOfTypeAll<Transform>();
+            string currentActiveSceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            foreach (Transform obj in allObjects)
+            {
+                if (obj.gameObject.scene.name == currentActiveSceneName && obj.name == "상단바")
+                {
+                    obj.gameObject.SetActive(true);
+                }
+            }
+
+            // 2. 유저의 복귀를 방해할 첫 이벤트, 캐릭터 선택창, 타이틀 본체는 철저하게 OFF 꺼버립니다.
+            if (firstEventPanel != null) firstEventPanel.SetActive(false);
+            if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+
+            // 3. 임무를 안전하게 마친 복귀 유저 신호 도장은 다음 플레이를 위해 깔끔하게 0으로 리셋합니다.
+            PlayerPrefs.SetInt("IsReturningFromStorage", 0);
+            PlayerPrefs.Save();
+
+            gameObject.SetActive(false); // 타이틀 제어 스크립트 본체 퇴장 마감
+            return; // ★ 일반 정석 타이틀 오프닝 로직은 가차 없이 스킵(Skip) 차단합니다!
+        }
+
+        // ----------------------------------------------------
+        // 🌀 [기존 정석 시작 로직 구역 - 변함없이 100% 안전 보존]
+        // ----------------------------------------------------
+        if (TryGetComponent<Canvas>(out Canvas titleCanvas)) { titleCanvas.overrideSorting = true; titleCanvas.sortingOrder = 99; }
         if (settingsPopupPanel != null) settingsPopupPanel.SetActive(false);
         if (iosNoticeText != null) iosNoticeText.gameObject.SetActive(false);
-        // [선배의 팁] 시작할 때 첫 이벤트 화면과 캐릭터 선택창을 자동으로 꺼둡니다.
         if (firstEventPanel != null) firstEventPanel.SetActive(false);
         if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
-
-        // 2. [핵심 기능] 인트로에서 검사했던 것과 동일하게 유저 데이터 존재 여부를 파악합니다.
-        // [선배의 팁] 두 기능을 독립적으로 순서대로 실행시킵니다.
-        CheckUserDataOnly(); // 1단계: 판단만 하기
-        SetupTitleButtons(); // 2단계: 버튼 켜고 끄기 따로 제어하기
-        
+        CheckUserDataOnly();
+        SetupTitleButtons();
     }
+
+
 
     // [유니티 매뉴얼] TitleManager.cs의 기존 데이터 검사 함수를 지우고, 이 두 개의 독립된 함수로 갈아끼우세요.
 
