@@ -18,91 +18,111 @@ public class CharacterStorageManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI storageCountText;
     [SerializeField] private int storageMaxCount = 10;
 
+    [Header("💡 [기획 원안 추가] 격자 및 파티 레이아웃 설정")]
+    [Tooltip("가로로 배치할 최대 칸 수 (기획서 기준: 5)")]
+    private int gridColumnCount = 5;
+
+    [Header("Character Prefab Setup")]
+    public GameObject[] characterPrefabs;
+
     private List<string> storageTempPartyList = new List<string>();
 
     private void OnEnable()
     {
-        if (PartyManager.Instance != null)
+        // 1. 싱글톤 보유 가방(UserCharacterInventory)으로부터 내가 가진 전체 캐릭터 ID를 내 창고 주머니로 완벽하게 이식합니다.
+        if (UserCharacterInventory.Instance != null && UserCharacterInventory.Instance.ownedCharacterIDs != null)
         {
-            storageTempPartyList = new List<string>(PartyManager.Instance.currentPartyList);
+            storageOwnedCharacterIDs.Clear();
+            foreach (string id in UserCharacterInventory.Instance.ownedCharacterIDs)
+            {
+                storageOwnedCharacterIDs.Add(id);
+            }
         }
 
+        // 2. 외부 파티 주머니(PartyManager)에 저장된 진짜 리더 캐릭터 ID 데이터를 내 임시 주머니로 복사합니다.
+        if (PartyManager.Instance != null && PartyManager.Instance.currentPartyList != null)
+        {
+            storageTempPartyList.Clear();
+            foreach (string id in PartyManager.Instance.currentPartyList)
+            {
+                storageTempPartyList.Add(id);
+            }
+        }
+
+        // 3. 데이터 동기화가 완전히 끝났으므로 화면 UI들을 정석대로 다시 그립니다.
         RefreshUniqueStorageUI();
         RefreshUniquePartyUI();
     }
+
 
     /// <summary>
     /// [최종 혁신 엔진] 프로젝트 '캐릭터' 폴더에 들어있는 진짜 실물 데이터 시트(.asset)를 직접 찾아와 프리팹에 통째로 수동 도킹시킵니다!
     /// </summary>
     public void RefreshUniqueStorageUI()
     {
+        // 1. 기존 창고 격자판 자식 오브젝트(오래된 카드들) 청소
         foreach (Transform child in storageGridParentGroup)
         {
             Destroy(child.gameObject);
         }
 
-        // 선택창에서 유저가 콕 집어 고른 나만의 고유 캐릭터 ID를 영리하게 꺼내옵니다.
+        // 2. 선택창에서 유저가 콕 집어 고른 나만의 고유 캐릭터 ID를 영리하게 꺼내옵니다.
         string currentMainHeroID = PlayerPrefs.GetString("SelectedCharacterID", "01");
 
+        // 💡 [기획 원안 연동] 유저가 보유한 고유 캐릭터 리스트를 생성합니다.
         List<string> testOwnedIDs = new List<string> { currentMainHeroID };
 
+        // 3. [우측 하단] 캐릭터 현재 보유수 / 최대보유수 텍스트 업데이트 (예: 1 / 10)
         if (storageCountText != null)
         {
-            storageCountText.text = $"{testOwnedIDs.Count} / {storageMaxCount}";
+            storageCountText.text = testOwnedIDs.Count.ToString() + " / " + storageMaxCount.ToString();
         }
 
+        // 4. 프로젝트 '캐릭터' 폴더 안의 모든 기획서 데이터를 싹 긁어옵니다.
+        CharacterData[] allDataSheets = Resources.LoadAll<CharacterData>("캐릭터");
+        if (allDataSheets == null || allDataSheets.Length == 0)
+        {
+            allDataSheets = Resources.FindObjectsOfTypeAll<CharacterData>();
+        }
+
+        // 5. 내 가방을 뒤져서 파일 이름에 현재 유저가 고른 ID가 들어있는 진짜 문서를 찾아 격자판에 생성합니다!
         foreach (string charID in testOwnedIDs)
         {
-            // 1. 비어있는 만능 프리팹 액자 껍데기를 격자판에 하나 찍어냅니다.
-            GameObject newSlot = Instantiate(storageCharacterSlotPrefab, storageGridParentGroup);
-            CharacterComponent comp = newSlot.GetComponent<CharacterComponent>();
-
-            if (comp != null)
+            CharacterData originalData = null;
+            foreach (var sheet in allDataSheets)
             {
-                // 2. 🎯 [데이터 다이렉트 도킹 핵심]
-                // 질문자님의 에디터 'Assets/캐릭터' 폴더 안에 들어있는 진짜 실물 문서 파일 이름("메인_01전사")을 정밀 저격해 불러옵니다!
-                // (※ 만약 ID가 "01" 이라면 'Assets/캐릭터/메인_01전사' 라는 진짜 원본 문서를 찾아옵니다.)
-                string assetPath = $"캐릭터/메인_{charID}전사";
-                CharacterData originalData = Resources.Load<CharacterData>(assetPath);
-
-                // 만약 Resources 내부에 없다면 일반 에셋 경로 폴더를 싹 뒤져서 강제 로드 연동시킵니다.
-                if (originalData == null)
+                if (sheet != null && sheet.name.Contains(charID))
                 {
-                    CharacterData[] allDataSheets = Resources.LoadAll<CharacterData>("캐릭터");
-                    foreach (var sheet in allDataSheets)
-                    {
-                        if (sheet != null && sheet.name.Contains(charID))
-                        {
-                            originalData = sheet;
-                            break;
-                        }
-                    }
-                }
-
-                // 3. 찾은 진짜 실물 전사 기획서(.asset)를 비어있던 프리팹 컴포넌트 내부(myData)에 코드가 강제로 직접 꼽아버립니다!
-                if (originalData != null)
-                {
-                    comp.myData = Instantiate(originalData); // 원본 데이터 훼손 방지를 위해 복사본 주입
-                    comp.myData.characterID = charID;
-
-                    // 4. 전사 기획서 문서 인스펙터창에 심어두신 캐릭터 고유 일러스트 그림(characterSprite)을 
-                    // 프리팹 슬롯 이미지 칸에 1:1로 직접 복사 각인시켜 유저 눈에 선명하게 보여줍니다!
-                    Image cardImage = newSlot.GetComponent<Image>();
-                    if (cardImage != null && comp.myData.characterSprite != null)
-                    {
-                        cardImage.sprite = comp.myData.characterSprite;
-                        cardImage.color = Color.white; // 하얀색 네모 상자 버그 완전 소멸!
-                    }
+                    originalData = sheet;
+                    break;
                 }
             }
 
-            Button btn = newSlot.GetComponent<Button>();
-            if (btn == null) btn = newSlot.AddComponent<Button>();
+            // 진짜 데이터 문서를 찾았다면 만능 '슬롯' 프리팹을 격자판 자식으로 소환합니다.
+            if (originalData != null && storageCharacterSlotPrefab != null)
+            {
+                GameObject newCard = Instantiate(storageCharacterSlotPrefab, storageGridParentGroup);
+                
+                // 생성된 슬롯에 데이터를 심어줍니다.
+                CharacterComponent cardComp = newCard.GetComponent<CharacterComponent>();
+                if (cardComp != null)
+                {
+                    cardComp.SetCharacterData(originalData);
+                }
 
-            btn.onClick.RemoveAllListeners();
-            btn.onClick.AddListener(() => OnClickUniqueStorageCharacter(charID));
+                // 슬롯 겉면 이미지와 기획서에 명시된 고유 색상을 입혀줍니다.
+                Image cardImage = newCard.GetComponent<Image>();
+                if (cardImage != null && originalData.characterSprite != null)
+                {
+                    cardImage.sprite = originalData.characterSprite;
+                    cardImage.color = new Color(originalData.characterColor.r, originalData.characterColor.g, originalData.characterColor.b, 1f);
+                }
+            }
         }
     }
+
+
+
 
     private void OnClickUniqueStorageCharacter(string characterID)
     {
@@ -128,36 +148,57 @@ public class CharacterStorageManager : MonoBehaviour
 
     public void RefreshUniquePartyUI()
     {
+        // 1. 상단 슬롯 기화 및 기존 연출 잔여물 청소
         for (int i = 0; i < uniquePartySlots.Count; i++)
         {
-            if (uniquePartySlots[i] != null) uniquePartySlots[i].sprite = storageEmptySlotSprite;
+            if (uniquePartySlots[i] != null)
+            {
+                uniquePartySlots[i].sprite = storageEmptySlotSprite;
+                foreach (Transform child in uniquePartySlots[i].transform) 
+                { 
+                    Destroy(child.gameObject); 
+                }
+            }
         }
 
-        // 상단 파티 슬롯 역시 하단에 복사 생성된 진짜 영웅 데이터(comp.myData)의 그림을 쓱 빼내어 똑같이 투영시킵니다!
+        // 2. 만능 '슬롯' 프리팹을 상단 칸에 소환하고, 하단에 생성된 진짜 데이터와 동기화합니다.
         CharacterComponent[] spawnedCards = storageGridParentGroup.GetComponentsInChildren<CharacterComponent>();
-
+        
         for (int i = 0; i < storageTempPartyList.Count; i++)
         {
             if (i >= uniquePartySlots.Count) break;
-
+            
             string partyCharID = storageTempPartyList[i];
-
+            
             foreach (CharacterComponent card in spawnedCards)
             {
                 if (card != null && card.myData != null && card.myData.characterID == partyCharID)
                 {
-                    if (uniquePartySlots[i] != null && card.myData.characterSprite != null)
+                    if (uniquePartySlots[i] != null && storageCharacterSlotPrefab != null)
                     {
-                        uniquePartySlots[i].sprite = card.myData.characterSprite;
-                        uniquePartySlots[i].color = Color.white;
+                        // 새 변수를 열어 부모 슬롯 자식 위치에 만능 프리팹을 생성합니다.
+                        GameObject newSlotObj = Instantiate(storageCharacterSlotPrefab, uniquePartySlots[i].transform);
+                        newSlotObj.transform.localPosition = Vector3.zero;
+                        newSlotObj.transform.localScale = Vector3.one;
+
+                        // 생성된 프리팹의 이미지 컴포넌트를 가져와 하단 원본 데이터의 그림과 색상을 똑같이 대입합니다.
+                        Image slotImage = newSlotObj.GetComponent<Image>();
+                        if (slotImage != null && card.myData.characterSprite != null)
+                        {
+                            slotImage.sprite = card.myData.characterSprite;
+                            
+                            // 💡 유저님이 지정하신 캐릭터의 고유 색상(빨강, 파랑 등)을 불투명하게 입혀줍니다.
+                            slotImage.color = new Color(card.myData.characterColor.r, card.myData.characterColor.g, card.myData.characterColor.b, 1f);
+                        }
                     }
                     break;
                 }
             }
         }
-
         UpdateUniqueSynergyText();
     }
+
+
 
     private void UpdateUniqueSynergyText()
     {
